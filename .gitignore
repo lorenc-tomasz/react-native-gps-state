@@ -42,3 +42,7 @@ buck-out/
 *.keystore
 
 .vscode
+
+android/.settings/
+
+android/.project

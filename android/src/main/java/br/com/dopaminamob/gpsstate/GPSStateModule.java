@@ -12,6 +12,7 @@ import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
+
 import androidx.core.app.ActivityCompat;
 
 import com.facebook.react.ReactActivity;
@@ -65,6 +66,7 @@ public class GPSStateModule extends ReactContextBaseJavaModule /*implements Acti
         return "GPSState";
     }
 
+
     @Override
     public Map<String, Object> getConstants() {
         final Map<String, Object> constants = new HashMap<>();
@@ -76,6 +78,7 @@ public class GPSStateModule extends ReactContextBaseJavaModule /*implements Acti
         constants.put("AUTHORIZED_WHENINUSE", STATUS_AUTHORIZED_WHENINUSE);
         return constants;
     }
+
 
     @ReactMethod
     void startListen() {
@@ -147,8 +150,13 @@ public class GPSStateModule extends ReactContextBaseJavaModule /*implements Acti
         promise.resolve(_NativeIsDeviceMOrAbove());
     }
 
+
     boolean _NativeIsDeviceMOrAbove() {
         return deviceSdkVersion >= Build.VERSION_CODES.M;
+    }
+
+    boolean _NativeIsDeviceQOrAbove() {
+        return deviceSdkVersion > Build.VERSION_CODES.P;
     }
 
     boolean _NativeIsTargetMOrAbove() {
@@ -165,18 +173,30 @@ public class GPSStateModule extends ReactContextBaseJavaModule /*implements Acti
         }
     };
 
+
     int getGpsState() {
         int status;
         boolean enabled = isGpsEnabled();
 
         if (_NativeIsDeviceMOrAbove()) {
-            boolean isGranted = isPermissionGranted();
+            boolean isFineLocationAccessGranted = isFinePermissionGranted();
 
             if (enabled) {
-                if (isGranted) {
-                    status = STATUS_AUTHORIZED;
+                if (_NativeIsDeviceQOrAbove()) {
+                    if (isFineLocationAccessGranted) {
+                        status = STATUS_AUTHORIZED_WHENINUSE;
+                        if (isBackgroundPermissionGranted()) {
+                            status = STATUS_AUTHORIZED_ALWAYS;
+                        }
+                    } else {
+                        status = STATUS_DENIED;
+                    }
                 } else {
-                    status = STATUS_DENIED;
+                    if (isFineLocationAccessGranted) {
+                        status = STATUS_AUTHORIZED;
+                    } else {
+                        status = STATUS_DENIED;
+                    }
                 }
             } else {
                 status = STATUS_RESTRICTED;
@@ -189,18 +209,28 @@ public class GPSStateModule extends ReactContextBaseJavaModule /*implements Acti
         return status;
     }
 
-    int getPermission() {
+    int getFinePermission() {
         return ActivityCompat.checkSelfPermission(getReactApplicationContext(), Manifest.permission.ACCESS_FINE_LOCATION);
     }
 
-    boolean isPermissionGranted() {
-        int permission = getPermission();
+    int getBackgroundPermission() {
+        return ActivityCompat.checkSelfPermission(getReactApplicationContext(), Manifest.permission.ACCESS_BACKGROUND_LOCATION);
+    }
+
+    boolean isFinePermissionGranted() {
+        int permission = getFinePermission();
+        return permission == PackageManager.PERMISSION_GRANTED;
+    }
+
+    boolean isBackgroundPermissionGranted() {
+        int permission = getBackgroundPermission();
         return permission == PackageManager.PERMISSION_GRANTED;
     }
 
     boolean isGpsEnabled() {
         return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
     }
+
 
     void sendEvent(int status) {
         ReactContext reactContext = getReactApplicationContext();
@@ -211,6 +241,7 @@ public class GPSStateModule extends ReactContextBaseJavaModule /*implements Acti
     }
 
     private final class GPSProvideChangeReceiver extends BroadcastReceiver {
+
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
@@ -220,3 +251,4 @@ public class GPSStateModule extends ReactContextBaseJavaModule /*implements Acti
         }
     }
 }
+
